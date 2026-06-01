@@ -1,0 +1,9 @@
+[project]
+name = "zeromq-estevao-braga"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "zmq>=0.0.0",
+]

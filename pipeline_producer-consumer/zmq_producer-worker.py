@@ -1,37 +1,101 @@
-import multiprocessing #-
-import zmq, time, pickle, sys, random #-
-#-
-NWORKERS = 10 #-
-#-
+import multiprocessing
+import zmq
+import pickle
+import random
+import time
+import math
+
+PORT1 = 5555
+PORT2 = 5556
+
 def producer():
-  context = zmq.Context()              
-  socket  = context.socket(zmq.PUSH)      # create a push socket
-  socket.bind("tcp://127.0.0.1:12345")    # bind socket to address
-  
-  while True:
-    workload = random.randint(1, 100)     # compute workload
-    print("Produced workload", format(workload,'03d')) #-
-    socket.send(pickle.dumps(workload))   # send workload to worker
-    time.sleep(workload/NWORKERS)         # balance production by waiting 
 
-def worker(id):
-  context = zmq.Context()
-  socket  = context.socket(zmq.PULL)      # create a pull socket
-  socket.connect("tcp://localhost:12345") # connect to the producer
-  thisworker = format(id,'03d') #-
+    context = zmq.Context()
 
-  while True:
-    print("Worker " + thisworker + " wants work") #-    
-    work = pickle.loads(socket.recv())     # receive work from a source
-    print("Worker " + thisworker + " gets   " + format(work,'03d')) #-
-    time.sleep(work)                       # pretend to work
-    
-if __name__ == "__main__": #-
-  s = multiprocessing.Process(target=producer) #-
-  w = [multiprocessing.Process(target=worker,args=(i+1,)) for i in range(NWORKERS)]#-
-#-
-  for i in range(NWORKERS): w[i].start() #-
-  s.start() #-
-  time.sleep(60) #-
-  for i in range(NWORKERS): w[i].terminate() #-
-  s.terminate() #-
+    socket = context.socket(zmq.PUSH)
+
+    socket.bind(f"tcp://*:{PORT1}")
+
+    while True:
+
+        task = {
+            "id": random.randint(1000, 9999),
+            "value": random.randint(1, 100)
+        }
+
+        print(f"[PRODUCER] {task}")
+
+        socket.send(pickle.dumps(task))
+
+        time.sleep(1)
+
+def worker1():
+
+    context = zmq.Context()
+
+    receiver = context.socket(zmq.PULL)
+
+    receiver.connect(
+        f"tcp://localhost:{PORT1}"
+    )
+
+    sender = context.socket(zmq.PUSH)
+
+    sender.bind(
+        f"tcp://*:{PORT2}"
+    )
+
+    while True:
+
+        task = pickle.loads(receiver.recv())
+
+        task["square"] = task["value"] ** 2
+
+        print(f"[WORKER1] {task}")
+
+        sender.send(pickle.dumps(task))
+
+def worker2():
+
+    context = zmq.Context()
+
+    receiver = context.socket(zmq.PULL)
+
+    receiver.connect(
+        f"tcp://localhost:{PORT2}"
+    )
+
+    while True:
+
+        task = pickle.loads(receiver.recv())
+
+        task["sqrt"] = round(
+            math.sqrt(task["square"]),
+            2
+        )
+
+        print(f"[WORKER2] {task}")
+
+if __name__ == "__main__":
+
+    p1 = multiprocessing.Process(
+        target=producer
+    )
+
+    p2 = multiprocessing.Process(
+        target=worker1
+    )
+
+    p3 = multiprocessing.Process(
+        target=worker2
+    )
+
+    p1.start()
+    p2.start()
+    p3.start()
+
+    time.sleep(60)
+
+    p1.terminate()
+    p2.terminate()
+    p3.terminate()
